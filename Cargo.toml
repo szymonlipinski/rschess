@@ -1,0 +1,10 @@
+[package]
+name = "sl_c3"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+num_enum = "0.7.2"
+strum = "0.26"
+strum_macros = "0.26"
+num-integer="0.1.44"
