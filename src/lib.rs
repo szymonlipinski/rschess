@@ -355,7 +355,11 @@ struct SetFields<'a> {
     board: &'a Bitboard,
     current: u8,
 }
-struct UnsetFields {}
+
+struct UnsetFields<'a> {
+    board: &'a Bitboard,
+    current: u8,
+}
 
 impl<'a> SetFields<'a> {
     fn new(board: &Bitboard) -> SetFields {
@@ -367,11 +371,49 @@ impl<'a> Iterator for SetFields<'a> {
     type Item = Field;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.current = self.current + 1;
-        let field = Field::from(self.current);
-        match field {
-            Field::INVALID => Option::None,
-            _ => Option::Some(field),
+        loop {
+            self.current = self.current + 1;
+            if !File::is_valid(self.current) {
+                return Option::None;
+            }
+            let field = Field::from(self.current);
+            match self.board.get(field) == true {
+                false => continue,
+                true => return Option::Some(field),
+            }
         }
+    }
+}
+
+impl<'a> UnsetFields<'a> {
+    fn new(board: &Bitboard) -> UnsetFields {
+        UnsetFields { board, current: 0 }
+    }
+}
+
+impl<'a> Iterator for UnsetFields<'a> {
+    type Item = Field;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            self.current = self.current + 1;
+            if !File::is_valid(self.current) {
+                return Option::None;
+            }
+            let field = Field::from(self.current);
+            match self.board.get(field) == false {
+                false => continue,
+                true => return Option::Some(field),
+            }
+        }
+    }
+}
+
+impl Bitboard {
+    fn set_fields_iter(&self) -> SetFields {
+        SetFields::new(self)
+    }
+    fn unset_fields_iter(&self) -> UnsetFields {
+        UnsetFields::new(self)
     }
 }
