@@ -4,14 +4,18 @@ use std::convert::TryFrom;
 use std::fmt::Display;
 use std::iter::Iterator;
 use std::marker::PhantomData;
-use std::ops::RangeInclusive;
 use std::ops::{
-    Add, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, RangeToInclusive,
+    Add, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, RangeBounds,
+    RangeInclusive,
 };
 use strum_macros::FromRepr;
 
 trait AllowedValues {
-    fn range() -> RangeInclusive<u8>;
+    fn allowed_values() -> RangeInclusive<u8>;
+
+    fn is_valid(value: u8) -> bool {
+        Self::allowed_values().contains(&value)
+    }
 }
 
 #[derive(Clone, Copy, FromRepr, Debug, PartialEq)]
@@ -29,7 +33,7 @@ pub enum File {
 }
 
 impl AllowedValues for File {
-    fn range() -> RangeInclusive<u8> {
+    fn allowed_values() -> RangeInclusive<u8> {
         0..=7
     }
 }
@@ -43,7 +47,7 @@ impl From<i8> for File {
 impl From<u8> for File {
     fn from(value: u8) -> Self {
         match value {
-            _ if !Self::range().contains(&value) => Self::INVALID,
+            _ if !Self::is_valid(value) => Self::INVALID,
             _ => Self::from_repr(value).unwrap(),
         }
     }
@@ -64,7 +68,7 @@ pub enum Rank {
 }
 
 impl AllowedValues for Rank {
-    fn range() -> RangeInclusive<u8> {
+    fn allowed_values() -> RangeInclusive<u8> {
         0..=7
     }
 }
@@ -78,7 +82,7 @@ impl From<i8> for Rank {
 impl From<u8> for Rank {
     fn from(value: u8) -> Self {
         match value {
-            _ if !Self::range().contains(&value) => Self::INVALID,
+            _ if !Self::is_valid(value) => Self::INVALID,
             _ => Self::from_repr(value).unwrap(),
         }
     }
@@ -105,7 +109,7 @@ pub enum Field {
 }
 
 impl AllowedValues for Field {
-    fn range() -> RangeInclusive<u8> {
+    fn allowed_values() -> RangeInclusive<u8> {
         0..=63
     }
 }
@@ -119,7 +123,7 @@ impl From<i8> for Field {
 impl From<u8> for Field {
     fn from(value: u8) -> Self {
         match value {
-            _ if !Self::range().contains(&value) => Self::INVALID,
+            _ if !Self::is_valid(value) => Self::INVALID,
             _ => Self::from_repr(value).unwrap(),
         }
     }
@@ -347,6 +351,27 @@ impl Not for Bitboard {
     }
 }
 
-impl Bitboard {
-    //fn iter_all(&self) -> std::Iterator {}
+struct SetFields<'a> {
+    board: &'a Bitboard,
+    current: u8,
+}
+struct UnsetFields {}
+
+impl<'a> SetFields<'a> {
+    fn new(board: &Bitboard) -> SetFields {
+        SetFields { board, current: 0 }
+    }
+}
+
+impl<'a> Iterator for SetFields<'a> {
+    type Item = Field;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.current = self.current + 1;
+        let field = Field::from(self.current);
+        match field {
+            Field::INVALID => Option::None,
+            _ => Option::Some(field),
+        }
+    }
 }
