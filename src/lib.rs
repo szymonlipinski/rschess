@@ -5,8 +5,7 @@ use std::fmt::Display;
 use std::iter::Iterator;
 use std::marker::PhantomData;
 use std::ops::{
-    Add, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, RangeBounds,
-    RangeInclusive,
+    Add, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, RangeInclusive,
 };
 use strum_macros::FromRepr;
 
@@ -312,7 +311,6 @@ impl BitOr for Bitboard {
         Self::Output::new(self.board | rhs.board)
     }
 }
-
 impl BitAnd for Bitboard {
     type Output = Self;
 
@@ -342,7 +340,6 @@ impl BitXorAssign for Bitboard {
         self.board ^= rhs.board
     }
 }
-
 impl Not for Bitboard {
     type Output = Self;
 
@@ -416,4 +413,44 @@ impl Bitboard {
     fn unset_fields_iter(&self) -> UnsetFields {
         UnsetFields::new(self)
     }
+}
+
+// -------------------------------------------------
+struct FormatterFlags {
+    show_board: bool,
+    show_files: bool,
+    show_ranks: bool,
+    files: [char; 8],
+    ranks: [char; 8],
+    empty_field: char,
+    not_empty_field: char,
+}
+
+impl Default for FormatterFlags {
+    fn default() -> Self {
+        Self {
+            show_board: true,
+            show_files: true,
+            show_ranks: true,
+            files: ['1', '2', '3', '4', '5', '6', '7', '8'],
+            ranks: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
+            empty_field: ' ',
+            not_empty_field: 'x',
+        }
+    }
+}
+
+impl Bitboard {
+    fn as_string(&self, ff: FormatterFlags) -> String {
+        " ".to_string()
+    }
+}
+
+macro_rules! assert_eq {
+    ($one:tt, $two:tt) => {
+        if $one != $two {
+            let diff = $one ^ $two;
+            print!(diff.to_string());
+        }
+    };
 }
