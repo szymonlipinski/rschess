@@ -1,3 +1,8 @@
+//! This crate is a Rust chess engine.
+//!
+//! Basically it's my playground for learning Rust.
+//!
+
 use num_enum::TryFromPrimitive;
 use num_integer::div_rem;
 use std::convert::TryFrom;
@@ -9,14 +14,28 @@ use std::ops::{
 };
 use strum_macros::FromRepr;
 
+/// Trait for storing allowed values for a type.
+///
+/// Values outside the range should be converted to either [Option::None][std::Option::None] or invalid value
+/// represented by the type.
+///
 trait AllowedValues {
+    /// Returns range of allowed values.
     fn allowed_values() -> RangeInclusive<u8>;
 
+    /// Checks if the given value is allowed to be converted into a proper type value.
     fn is_valid(value: u8) -> bool {
         Self::allowed_values().contains(&value)
     }
 }
 
+/// Chess File, also known as column.
+/// These are named a..h.
+///
+/// The special `INVALID` invariant is used e.g. when converting from value > 7.
+/// This way we can return proper object instead of using Option<File>, which is not allowed
+/// for some of the operators.
+///
 #[derive(Clone, Copy, FromRepr, Debug, PartialEq)]
 #[repr(u8)]
 pub enum File {
@@ -52,6 +71,12 @@ impl From<u8> for File {
     }
 }
 
+/// Chess Ranks, also known as rows.
+/// These are named 1..8
+///
+/// The special `INVALID` invariant is used e.g. when converting from value > 7.
+/// This way we can return proper object instead of using Option<File>, which is not allowed
+/// for some of the operators.
 #[derive(Clone, Copy, FromRepr, Debug, PartialEq)]
 #[repr(u8)]
 pub enum Rank {
@@ -87,11 +112,17 @@ impl From<u8> for Rank {
     }
 }
 
+/// Field coordinates as numbers.
 pub struct Point {
     file: u8,
     rank: u8,
 }
 
+/// Board fields.
+///
+/// The special `INVALID` invariant is used e.g. when converting from value > 7.
+/// This way we can return proper object instead of using Option<File>, which is not allowed
+/// for some of the operators.
 #[rustfmt::skip]
 #[derive(Clone, Copy, FromRepr, Debug, PartialEq)]
 #[repr(u8)]
@@ -135,54 +166,54 @@ impl From<Field> for Point {
     }
 }
 
-/*
- ------------------------------------------------
- |     NNWW |    NNW |   NN |    NNE |     NNEE |
- ------------------------------------------------
- |      NWW |     NW |    N |     NE |      NEE |
- ------------------------------------------------
- |       WW |      W |    X |      E |       EE |
- ------------------------------------------------
- |      SWW |     SW |    S |     SE |      SEE |
- ------------------------------------------------
- |     SSWW |    SSW |   SS |    SSE |     SSEE |
- ------------------------------------------------
+/// Type for storing move vector from one field to another.
+struct MoveVector(i8, i8);
 
- ------------------------------------------------
- | +8+8-1-1 | +8+8-1 | +8+8 | +8+8+1 | +8+8+1+1 |
- ------------------------------------------------
- |   +8-1-1 |   +8-1 |   +8 |   +8+1 |   +8+1+1 |
- ------------------------------------------------
- |    0-1-1 |    0-1 |    0 |    0+1 |    0+1+1 |
- ------------------------------------------------
- |   -8-1-1 |   -8-1 |   -8 |   -8+1 |   -8+1+1 |
- ------------------------------------------------
- | -8-8-1-1 | -8-8-1 | -8-8 | -8-8+1 | -8-8+1+1 |
- ------------------------------------------------
-
- ------------------------------------------------
- |      +14 |    +15 |  +16 |    +17 |      +18 |
- ------------------------------------------------
- |       +6 |     +7 |   +8 |    + 9 |      +10 |
- ------------------------------------------------
- |       -2 |     -1 |    0 |     +1 |       +2 |
- ------------------------------------------------
- |      -10 |     -9 |   -8 |     -7 |       -6 |
- ------------------------------------------------
- |      -18 |    -17 |  -16 |    -15 |      -14 |
- ------------------------------------------------
-
-*/
-struct MV(i8, i8);
-
-impl Add for MV {
+impl Add for MoveVector {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        MV(self.0 + rhs.0, self.1 + rhs.1)
+        MoveVector(self.0 + rhs.0, self.1 + rhs.1)
     }
 }
 
+/// Direction to move from the current field.
+///
+/// The codes are taken from the geographical ones: `North`, `South`, `East`, `West`
+/// and also: `North East`, and `North North West`.
+///
+/// Except for H, which means HERE.
+///
+/// 
+/// **Example codes for a field:**
+///
+/// |          |        |      |        |          |
+/// |:--------:|:------:|:----:|:------:|:--------:|
+/// |     NNWW |    NNW |   NN |    NNE |     NNEE |
+/// |      NWW |     NW |    N |     NE |      NEE |
+/// |       WW |      W |    H |      E |       EE |
+/// |      SWW |     SW |    S |     SE |      SEE |
+/// |     SSWW |    SSW |   SS |    SSE |     SSEE |
+///
+/// **Calculations for the field position:**
+///
+/// |          |        |      |        |          |
+/// |:--------:|:------:|:----:|:------:|:--------:|
+/// | +8+8-1-1 | +8+8-1 | +8+8 | +8+8+1 | +8+8+1+1 |
+/// |   +8-1-1 |   +8-1 |   +8 |   +8+1 |   +8+1+1 |
+/// |    0-1-1 |    0-1 |    0 |    0+1 |    0+1+1 |
+/// |   -8-1-1 |   -8-1 |   -8 |   -8+1 |   -8+1+1 |
+/// | -8-8-1-1 | -8-8-1 | -8-8 | -8-8+1 | -8-8+1+1 |
+///
+/// **Calculations in shortened version:**
+///
+/// |          |        |      |        |          |
+/// |:--------:|:------:|:----:|:------:|:--------:|
+/// |      +14 |    +15 |  +16 |    +17 |      +18 |
+/// |       +6 |     +7 |   +8 |    + 9 |      +10 |
+/// |       -2 |     -1 |    0 |     +1 |       +2 |
+/// |      -10 |     -9 |   -8 |     -7 |       -6 |
+/// |      -18 |    -17 |  -16 |    -15 |      -14 |
 #[rustfmt::skip]
 #[derive(Debug, Copy, Clone)]
 pub enum Direction {
@@ -193,36 +224,36 @@ pub enum Direction {
    SSWW,  SSW,  SS,  SSE,  SSEE,
 }
 
-impl Direction {
+impl From<Direction> for MoveVector {
     #[rustfmt::skip]
     #[inline(always)]
-    fn mv(self) -> MV {
-        match self {
-            Self::H => MV( 0,  0),
-            Self::N => MV( 0,  1),
-            Self::E => MV( 1,  0),
-            Self::S => MV( 0, -1),
-            Self::W => MV(-1,  0),
-            Self::EE => Self::E.mv() + Self::E.mv(),
-            Self::WW => Self::W.mv() + Self::W.mv(),
-            Self::NN => Self::N.mv() + Self::N.mv(),
-            Self::NE => Self::N.mv() + Self::E.mv(),
-            Self::NW => Self::N.mv() + Self::W.mv(),
-            Self::SS => Self::S.mv() + Self::S.mv(),
-            Self::SE => Self::S.mv() + Self::E.mv(),
-            Self::SW => Self::S.mv() + Self::W.mv(),
-            Self::NNW => Self::NN.mv() + Self::W.mv(),
-            Self::NNE => Self::NN.mv() + Self::E.mv(),
-            Self::NWW => Self::N.mv() + Self::WW.mv(),
-            Self::NEE => Self::N.mv() + Self::EE.mv(),
-            Self::SWW => Self::S.mv() + Self::WW.mv(),
-            Self::SEE => Self::S.mv() + Self::EE.mv(),
-            Self::SSW => Self::SS.mv() + Self::W.mv(),
-            Self::SSE => Self::SS.mv() + Self::E.mv(),
-            Self::NNWW => Self::NN.mv() + Self::WW.mv(),
-            Self::NNEE => Self::NN.mv() + Self::EE.mv(),
-            Self::SSWW => Self::SS.mv() + Self::WW.mv(),
-            Self::SSEE => Self::SS.mv() + Self::EE.mv(),
+    fn from(value: Direction) -> Self {
+        match value {
+            Direction::H => Self( 0,  0),
+            Direction::N => Self( 0,  1),
+            Direction::E => Self( 1,  0),
+            Direction::S => Self( 0, -1),
+            Direction::W => Self(-1,  0),
+            Direction::EE => Self::from(Direction::E) + Self::from(Direction::E),
+            Direction::WW => Self::from(Direction::W) + Self::from(Direction::W),
+            Direction::NN => Self::from(Direction::N) + Self::from(Direction::N),
+            Direction::NE => Self::from(Direction::N) + Self::from(Direction::E),
+            Direction::NW => Self::from(Direction::N) + Self::from(Direction::W),
+            Direction::SS => Self::from(Direction::S) + Self::from(Direction::S),
+            Direction::SE => Self::from(Direction::S) + Self::from(Direction::E),
+            Direction::SW => Self::from(Direction::S) + Self::from(Direction::W),
+            Direction::NNW => Self::from(Direction::NN) + Self::from(Direction::W),
+            Direction::NNE => Self::from(Direction::NN) + Self::from(Direction::E),
+            Direction::NWW => Self::from(Direction::N) + Self::from(Direction::WW),
+            Direction::NEE => Self::from(Direction::N) + Self::from(Direction::EE),
+            Direction::SWW => Self::from(Direction::S) + Self::from(Direction::WW),
+            Direction::SEE => Self::from(Direction::S) + Self::from(Direction::EE),
+            Direction::SSW => Self::from(Direction::SS) + Self::from(Direction::W),
+            Direction::SSE => Self::from(Direction::SS) + Self::from(Direction::E),
+            Direction::NNWW => Self::from(Direction::NN) + Self::from(Direction::WW),
+            Direction::NNEE => Self::from(Direction::NN) + Self::from(Direction::EE),
+            Direction::SSWW => Self::from(Direction::SS) + Self::from(Direction::WW),
+            Direction::SSEE => Self::from(Direction::SS) + Self::from(Direction::EE),
         }
     }
 }
@@ -231,7 +262,7 @@ impl Add<Direction> for Field {
     type Output = Field;
 
     fn add(self, rhs: Direction) -> Self::Output {
-        let mv = rhs.mv();
+        let mv = MoveVector::from(rhs);
         let file = self.file() as i8 + mv.0;
         let rank = self.rank() as i8 + mv.1;
 
@@ -240,6 +271,7 @@ impl Add<Direction> for Field {
 }
 
 impl Field {
+    /// Creates new Field from the arguments.
     fn new(file: File, rank: Rank) -> Self {
         if file == File::INVALID {
             return Self::INVALID;
@@ -253,6 +285,7 @@ impl Field {
             None => Field::INVALID,
         }
     }
+    /// Calculates the Rank for the field.
     fn rank(self) -> Rank {
         match Rank::from_repr(self as u8 / 8) {
             Some(x) => x,
@@ -265,41 +298,48 @@ impl Field {
             None => File::INVALID,
         }
     }
+    /// Finds a new Field moving in the given `direction` from the current field.
     fn mv(self, direction: Direction) -> Field {
         self + direction
     }
 }
 
+/// Bitboard.
 #[derive(Default)]
-struct Bitboard {
+pub struct Bitboard {
     board: u64,
     _phantom: PhantomData<usize>,
 }
 
 impl Bitboard {
-    fn new(value: u64) -> Self {
+    /// Creates a new Bitboard copying the `value` as the bits representation.
+    pub fn new(value: u64) -> Self {
         Self {
             board: value,
             _phantom: PhantomData,
         }
     }
-    fn make_mask(index: u8) -> u64 {
+    /// Creates bit mask with just one bit set (specified as the `index`).
+    pub fn make_mask(index: u8) -> u64 {
         1u64 << index
     }
-
-    fn set(&mut self, field: Field) {
+    /// Sets the bit for the given field.
+    pub fn set(&mut self, field: Field) {
         self.board &= Self::make_mask(field as u8)
     }
 
-    fn unset(&mut self, field: Field) {
+    /// Clears the bit for the given field.
+    pub fn unset(&mut self, field: Field) {
         self.board &= !Self::make_mask(field as u8)
     }
 
-    fn is_set(&self, field: Field) -> bool {
+    /// Checks if the bitboard has set the `field`.
+    pub fn is_set(&self, field: Field) -> bool {
         self.get(field)
     }
 
-    fn get(&self, field: Field) -> bool {
+    /// Returns value for the `field`.
+    pub fn get(&self, field: Field) -> bool {
         0 != (self.board & Self::make_mask(field as u8))
     }
 }
@@ -348,11 +388,13 @@ impl Not for Bitboard {
     }
 }
 
+/// Private struct used for implementing iterator for the set fields.
 struct SetFields<'a> {
     board: &'a Bitboard,
     current: u8,
 }
 
+/// Private struct used for implementing iterator for the not set fields.
 struct UnsetFields<'a> {
     board: &'a Bitboard,
     current: u8,
